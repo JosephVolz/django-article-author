@@ -6,6 +6,8 @@ from marshmallow.decorators import post_load
 from techtest.articles.models import Article
 from techtest.regions.models import Region
 from techtest.regions.schemas import RegionSchema
+from techtest.authors.models import Author
+from techtest.authors.schemas import AuthorSchema
 
 
 class ArticleSchema(Schema):
@@ -18,6 +20,9 @@ class ArticleSchema(Schema):
     regions = fields.Method(
         required=False, serialize="get_regions", deserialize="load_regions"
     )
+    authors = fields.Method(
+        required=False, serialize="get_authors", deserialize="load_authors"
+    )
 
     def get_regions(self, article):
         return RegionSchema().dump(article.regions.all(), many=True)
@@ -28,6 +33,15 @@ class ArticleSchema(Schema):
             for region in regions
         ]
 
+    def get_authors(self, article):
+        return AuthorSchema().dump(article.authors.all(), many=True)
+
+    def load_authors(self, authors):
+        return [
+            Author.objects.get_or_create(id=author.pop("id", None), defaults=author)[0]
+            for author in authors
+        ]
+
     @post_load
     def update_or_create(self, data, *args, **kwargs):
         regions = data.pop("regions", None)
@@ -36,4 +50,12 @@ class ArticleSchema(Schema):
         )
         if isinstance(regions, list):
             article.regions.set(regions)
+
+
+        authors = data.pop("authors", None)
+        article, _ = Article.objects.update_or_create(
+            id=data.pop("id", None), defaults=data
+        )
+        if isinstance(authors, list):
+            article.authors.set(authors)
         return article
